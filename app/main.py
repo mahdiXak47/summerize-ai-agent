@@ -22,14 +22,9 @@ def healthz(deep: int = Query(default=0)) -> JSONResponse:
     settings = get_settings()
     checks: Dict[str, Any] = {}
 
-    if settings.llm_provider.lower() == "openrouter":
-        checks["provider"] = "openrouter"
-        checks["env_api_key"] = bool(settings.openrouter_api_key)
-        checks["model_configured"] = bool(settings.openrouter_model)
-    else:
-        checks["provider"] = "openai"
-        checks["env_api_key"] = bool(settings.openai_api_key)
-        checks["model_configured"] = bool(settings.openai_model)
+    checks["provider"] = "openrouter"
+    checks["env_api_key"] = bool(settings.openrouter_api_key)
+    checks["model_configured"] = bool(settings.openrouter_model)
 
     status = "ok" if all(checks.values()) else "unhealthy"
     ready = status == "ok"

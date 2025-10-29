@@ -63,18 +63,6 @@ also consider that there is not need to tell the exact details just the importan
 
 """
 
-
-def _build_input(ticket_json_str: str) -> str:
-    """Build the single input string concatenating system rules and dynamic content."""
-    return (
-        _SYSTEM_PROMPT
-        + "\n\n"
-        + "تیکت:\n<JSON>\n"
-        + ticket_json_str
-        + "\n</JSON>"
-    )
-
-
 def _parse_three_sections(text: str) -> Tuple[str, str, str]:
     """Parse the model output into three sections using simple heuristics."""
     normalized = text.replace("\r", "").strip()
@@ -134,67 +122,41 @@ def _parse_three_sections(text: str) -> Tuple[str, str, str]:
 def summarize_ticket(ticket_json_str: str) -> Tuple[str, str, str]:
     """Summarize the ticket content and return three Persian sections."""
     settings = get_settings()
-    provider = settings.llm_provider.lower()
 
-    user_input = _build_input(ticket_json_str)
+    if not settings.openrouter_api_key:
+        _logger.error("OPENROUTER_API_KEY is missing.")
+        raise RuntimeError("OpenRouter API key not configured.")
+
+    user_content = "تیکت:\n<JSON>\n" + ticket_json_str + "\n</JSON>"
 
     try:
-        if provider == "openrouter":
-            if not settings.openrouter_api_key:
-                _logger.error("OPENROUTER_API_KEY is missing.")
-                raise RuntimeError("OpenRouter API key not configured.")
+        client = OpenAI(
+            base_url="https://openrouter.ai/api/v1",
+            api_key=settings.openrouter_api_key,
+        )
+        client = client.with_options(timeout=settings.request_timeout_seconds)
 
-            client = OpenAI(
-                base_url="https://openrouter.ai/api/v1",
-                api_key=settings.openrouter_api_key,
-            )
-            client = client.with_options(timeout=settings.request_timeout_seconds)
+        extra_headers = {}
+        if settings.openrouter_site_url:
+            extra_headers["HTTP-Referer"] = settings.openrouter_site_url
+        if settings.openrouter_site_name:
+            extra_headers["X-Title"] = settings.openrouter_site_name
 
-            extra_headers = {}
-            if settings.openrouter_site_url:
-                extra_headers["HTTP-Referer"] = settings.openrouter_site_url
-            if settings.openrouter_site_name:
-                extra_headers["X-Title"] = settings.openrouter_site_name
+        completion = client.chat.completions.create(
+            model=settings.openrouter_model,
+            messages=[
+                {"role": "system", "content": _SYSTEM_PROMPT},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.2,
+            max_tokens=600,
+            extra_headers=extra_headers or None,
+        )
 
-            completion = client.chat.completions.create(
-                model=settings.openrouter_model,
-                messages=[
-                    {"role": "system", "content": _SYSTEM_PROMPT},
-                    {"role": "user", "content": user_input},
-                ],
-                temperature=0.2,
-                max_tokens=600,
-                extra_headers=extra_headers or None,
-            )
-
-            try:
-                text = completion.choices[0].message.content or ""
-            except Exception:  # noqa: BLE001
-                text = ""
-        else:
-            if not settings.openai_api_key:
-                _logger.error("OPENAI_API_KEY is missing.")
-                raise RuntimeError("OpenAI API key not configured.")
-
-            client = OpenAI(api_key=settings.openai_api_key)
-            client = client.with_options(timeout=settings.request_timeout_seconds)
-
-            resp = client.responses.create(
-                model=settings.openai_model,
-                input=user_input,
-                temperature=0.2,
-                max_output_tokens=600,
-            )
-
-            try:
-                text = resp.output_text  # SDK v1 convenience accessor.
-            except Exception:  # noqa: BLE001
-                # Structured fallback.
-                try:
-                    first = resp.output[0]
-                    text = getattr(first, "content", "") or ""
-                except Exception:  # noqa: BLE001
-                    text = ""
+        try:
+            text = completion.choices[0].message.content or ""
+        except Exception:  # noqa: BLE001
+            text = ""
     except Exception as exc:  # noqa: BLE001
         _logger.exception("LLM request failed: %s", exc)
         raise
