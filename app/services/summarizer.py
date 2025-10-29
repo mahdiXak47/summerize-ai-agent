@@ -9,12 +9,59 @@ from app.config import get_settings
 _logger = logging.getLogger(__name__)
 
 
-_SYSTEM_PROMPT = (
-    "شما یک دستیار فنی هستید که باید یک تیکت فنی را خلاصه کنید. خروجی فقط فارسی باشد، "
-    "اصطلاحات کاملاً فنی انگلیسی را به همان صورت نگه دارید. خروجی دقیقاً سه بخش کوتاه داشته باشد و چیزی اضافه نشود:\n"
-    "1) «مسئله»\n2) «روند حل به‌صورت خلاصه»\n3) «نتیجه و نکات کلیدی»\n"
-    "از حدس‌زدن خودداری کنید و فقط بر اساس محتوای تیکت نتیجه بگیرید."
-)
+_SYSTEM_PROMPT = """
+the form of this gpt behavior is it will get an input of json with flags that enable a part of this json or disable it and some rules are mentiond in it 
+
+consider that the form of json is like this
+
+{
+  "ticket_title": "string",
+  "ticket_priority": "normal | high | critical",
+  "ticket_status":"resolved | closed | open | samurai workflow | camedus workflow | lamallus workflow | gow workflow | gherghi workflow | marketplace workflow | financial workflow",
+  "ticket_labels": [
+    "string"
+  ],
+  "ticket_description": "Text reported by customer",
+  "comments": [
+    {
+      "sender": "customer",
+      "type": "text | attachment",
+      "content": "string or file reference"
+    },
+    {
+      "sender": "technical_support",
+      "type": "text | attachment",
+      "visibility": "internal | public",
+      "content": "string or file reference"
+    }
+  ]
+}
+
+
+based on that i will send a content of a ticket and ask from the agent some questions
+
+also consider all the answers most be based on persian language 
+
+do not send the ticket number , title , priority , status and labes just know them it might be usable for analysing the ticket but no need to send it in output 
+
+the output structure is good to be like this : 
+
+ticket problem : 
+process of troubleshooting the ticket : 
+final result :
+
+consider that when you are mention some crew of the company that says something or do something just say the name of the crew not its position 
+just say مهدی اکبری do this or says that instead of telling مهدی اکبری کارشناس پشتیبانی does this or says that 
+
+and here is a detail of the company users with theri teams : 
+
+مهدی اکبری, مهرشاد دهقانی , محسن کربلائی امینی, فاطمه حمدی, پارسا حاجی قاسمی are technical support 
+محمد امین بخشی is technical financial support 
+هادی زمانی , سهند اسماعیل‌زاده, محمدمهدی واحدی are dbass service support 
+
+also consider that there is not need to tell the exact details just the important things and explaining a bit the process of ticket troubleshoot will be ok
+
+"""
 
 
 def _build_input(ticket_json_str: str) -> str:
@@ -87,35 +134,70 @@ def _parse_three_sections(text: str) -> Tuple[str, str, str]:
 def summarize_ticket(ticket_json_str: str) -> Tuple[str, str, str]:
     """Summarize the ticket content and return three Persian sections."""
     settings = get_settings()
-    if not settings.openai_api_key:
-        _logger.error("OPENAI_API_KEY is missing.")
-        raise RuntimeError("OpenAI API key not configured.")
-
-    client = OpenAI(api_key=settings.openai_api_key)
-    client = client.with_options(timeout=settings.request_timeout_seconds)
+    provider = settings.llm_provider.lower()
 
     user_input = _build_input(ticket_json_str)
 
     try:
-        resp = client.responses.create(
-            model=settings.openai_model,
-            input=user_input,
-            temperature=0.2,
-            max_output_tokens=600,
-        )
-    except Exception as exc:  # noqa: BLE001
-        _logger.exception("OpenAI request failed: %s", exc)
-        raise
+        if provider == "openrouter":
+            if not settings.openrouter_api_key:
+                _logger.error("OPENROUTER_API_KEY is missing.")
+                raise RuntimeError("OpenRouter API key not configured.")
 
-    try:
-        text = resp.output_text  # SDK v1 convenience accessor.
-    except Exception:  # noqa: BLE001
-        # Structured fallback.
-        try:
-            first = resp.output[0]
-            text = getattr(first, "content", "") or ""
-        except Exception:  # noqa: BLE001
-            text = ""
+            client = OpenAI(
+                base_url="https://openrouter.ai/api/v1",
+                api_key=settings.openrouter_api_key,
+            )
+            client = client.with_options(timeout=settings.request_timeout_seconds)
+
+            extra_headers = {}
+            if settings.openrouter_site_url:
+                extra_headers["HTTP-Referer"] = settings.openrouter_site_url
+            if settings.openrouter_site_name:
+                extra_headers["X-Title"] = settings.openrouter_site_name
+
+            completion = client.chat.completions.create(
+                model=settings.openrouter_model,
+                messages=[
+                    {"role": "system", "content": _SYSTEM_PROMPT},
+                    {"role": "user", "content": user_input},
+                ],
+                temperature=0.2,
+                max_tokens=600,
+                extra_headers=extra_headers or None,
+            )
+
+            try:
+                text = completion.choices[0].message.content or ""
+            except Exception:  # noqa: BLE001
+                text = ""
+        else:
+            if not settings.openai_api_key:
+                _logger.error("OPENAI_API_KEY is missing.")
+                raise RuntimeError("OpenAI API key not configured.")
+
+            client = OpenAI(api_key=settings.openai_api_key)
+            client = client.with_options(timeout=settings.request_timeout_seconds)
+
+            resp = client.responses.create(
+                model=settings.openai_model,
+                input=user_input,
+                temperature=0.2,
+                max_output_tokens=600,
+            )
+
+            try:
+                text = resp.output_text  # SDK v1 convenience accessor.
+            except Exception:  # noqa: BLE001
+                # Structured fallback.
+                try:
+                    first = resp.output[0]
+                    text = getattr(first, "content", "") or ""
+                except Exception:  # noqa: BLE001
+                    text = ""
+    except Exception as exc:  # noqa: BLE001
+        _logger.exception("LLM request failed: %s", exc)
+        raise
 
     if not text:
         _logger.warning("Empty response from model.")
