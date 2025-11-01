@@ -2,7 +2,7 @@ import json
 import logging
 from typing import Any, Dict
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
@@ -48,9 +48,16 @@ def healthz(deep: int = Query(default=0)) -> JSONResponse:
 
 
 @app.post("/webhook/ticket", response_model=SummaryResponse)
-def webhook_ticket(ticket: Ticket) -> SummaryResponse:
-    """Receive a ticket payload, summarize via OpenAI, print and return JSON."""
+async def webhook_ticket(request: Request) -> SummaryResponse:
+    """Receive a ticket payload, log headers/body, summarize, and return JSON."""
     try:
+        headers_dict = dict(request.headers)
+        body_bytes = await request.body()
+        body_text = body_bytes.decode("utf-8", errors="replace")
+        _logger.info("/webhook/ticket headers: %s", headers_dict)
+        _logger.info("/webhook/ticket body: %s", body_text)
+
+        ticket = Ticket.model_validate_json(body_bytes)
         ticket_json_str = json.dumps(ticket.model_dump(), ensure_ascii=False, indent=2)
         problem, resolution_summary, result_and_key_points = summarize_ticket(ticket_json_str)
     except Exception as exc:  # noqa: BLE001
