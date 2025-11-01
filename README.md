@@ -16,6 +16,13 @@ A tiny HTTP service that receives a technical ticket (JSON), builds a static+dyn
 - Configurable via env var `OPENAI_MODEL`.
 - OpenAI Python SDK v1 (`openai` package) is used.
 
+## Environment variables
+- LLM_PROVIDER: Defaults to `openrouter`.
+- OPENROUTER_API_KEY: OpenRouter API key. Required.
+- OPENROUTER_MODEL: OpenRouter model name. Default: `tngtech/deepseek-r1t2-chimera:free`.
+- OPENROUTER_SITE_URL: Optional site URL for OpenRouter rankings. Optional.
+- OPENROUTER_SITE_NAME: Optional site title for OpenRouter rankings. Optional.
+
 ## Run locally
 ```bash
 # From project root
