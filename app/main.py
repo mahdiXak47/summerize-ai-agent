@@ -6,7 +6,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.schemas import SummaryResponse, Ticket
+from app.schemas import SummaryResponse, IncomingTicket
 from app.services.summarizer import summarize_ticket
 
 
@@ -57,8 +57,23 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
         _logger.info("/webhook/ticket headers: %s", headers_dict)
         _logger.info("/webhook/ticket body: %s", body_text)
 
-        ticket = Ticket.model_validate_json(body_bytes)
-        ticket_json_str = json.dumps(ticket.model_dump(), ensure_ascii=False, indent=2)
+        incoming_ticket = IncomingTicket.model_validate_json(body_bytes)
+        # Map incoming fields to the summarizer ticket format
+        mapped_ticket = {
+            "ticket_title": incoming_ticket.summary,
+            "ticket_priority": "normal",  # Not provided, use default
+            "ticket_status": "open",      # Not provided, use default
+            "ticket_labels": [],           # Not provided, use default
+            "ticket_description": incoming_ticket.description,
+            "comments": [
+                {
+                    "sender": c.author,
+                    "type": "text",  # No type field in Jira; default to text
+                    "content": c.body
+                } for c in incoming_ticket.comments
+            ]
+        }
+        ticket_json_str = json.dumps(mapped_ticket, ensure_ascii=False, indent=2)
         problem, resolution_summary, result_and_key_points = summarize_ticket(ticket_json_str)
     except Exception as exc:  # noqa: BLE001
         _logger.exception("Summarization failed: %s", exc)

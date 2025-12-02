@@ -134,7 +134,7 @@ def summarize_ticket(ticket_json_str: str) -> Tuple[str, str, str]:
             base_url="https://openrouter.ai/api/v1",
             api_key=settings.openrouter_api_key,
         )
-        client = client.with_options(timeout=settings.request_timeout_seconds)
+    client = client.with_options(timeout=settings.request_timeout_seconds)
 
         extra_headers = {}
         if settings.openrouter_site_url:
