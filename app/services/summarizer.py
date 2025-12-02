@@ -134,7 +134,7 @@ def summarize_ticket(ticket_json_str: str) -> Tuple[str, str, str]:
             base_url="https://openrouter.ai/api/v1",
             api_key=settings.openrouter_api_key,
         )
-    client = client.with_options(timeout=settings.request_timeout_seconds)
+        client = client.with_options(timeout=settings.request_timeout_seconds)
 
         extra_headers = {}
         if settings.openrouter_site_url:
@@ -152,7 +152,6 @@ def summarize_ticket(ticket_json_str: str) -> Tuple[str, str, str]:
             max_tokens=600,
             extra_headers=extra_headers or None,
         )
-
         try:
             text = completion.choices[0].message.content or ""
         except Exception:  # noqa: BLE001
