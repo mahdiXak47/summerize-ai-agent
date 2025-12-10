@@ -112,15 +112,11 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
             _logger.error(f"Unknown error parsing JSON: {unknown_json}")
         raise HTTPException(status_code=400, detail="Invalid JSON body (see server log for pinpointed error)") from exc
 
-    combined_for_print = (
-        "مسئله:\n" + problem.strip() + "\n\n"
-        "روند حل به‌صورت خلاصه:\n" + resolution_summary.strip() + "\n\n"
-        "نتیجه و نکات کلیدی:\n" + result_and_key_points.strip()
+    # Combine the outputs into a markdown string as per new requirement
+    markdown_response = (
+        f"**مسئله:** {problem.strip()}\n\n"
+        f"**فرایند رسیدگی:** {resolution_summary.strip()}\n\n"
+        f"**نتیجه بررسی:** {result_and_key_points.strip()}"
     )
-    print(combined_for_print)
 
-    return SummaryResponse(
-        problem=problem.strip(),
-        resolution_summary=resolution_summary.strip(),
-        result_and_key_points=result_and_key_points.strip(),
-    )
+    return {"content": markdown_response}
