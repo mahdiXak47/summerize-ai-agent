@@ -9,6 +9,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.schemas import IncomingTicket, MarkdownResponse
 from app.services.summarizer import summarize_ticket
+import httpx
 
 
 logging.basicConfig(level=logging.INFO)
@@ -70,6 +71,18 @@ async def webhook_ticket(request: Request) -> MarkdownResponse:
         clean_body_text = remove_illegal_json_ctrl_str(body_text)
         _logger.info("CLEANED BODY TEXT repr: %r", clean_body_text)
         clean_body_text_no_newlines = clean_body_text.replace('\n', '')
+        print("lets send the json to the n8n workflow")
+        # Forward the cleaned body to the remote n8n workflow
+        try:
+            async with httpx.AsyncClient(timeout=10) as client:
+                n8n_response = await client.post(
+                    "http://mcp-personal.darkube.app/webhook-test/receive-json",
+                    content=clean_body_text_no_newlines,
+                    headers={"Content-Type": "application/json"}
+                )
+                _logger.info(f"Forwarded to n8n, status: {n8n_response.status_code}")
+        except Exception as e:
+            _logger.warning(f"Failed to forward to n8n webhook: {e}")
         incoming_ticket = IncomingTicket.model_validate_json(clean_body_text_no_newlines)
         # Map incoming fields to the summarizer ticket format
         mapped_ticket = {

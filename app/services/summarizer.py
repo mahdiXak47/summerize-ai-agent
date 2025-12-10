@@ -128,7 +128,7 @@ def summarize_ticket(ticket_json_str: str) -> Tuple[str, str, str]:
         raise RuntimeError("OpenRouter API key not configured.")
 
     user_content = "تیکت:\n<JSON>\n" + ticket_json_str + "\n</JSON>"
-
+    print("sending data to ai agent")
     try:
         client = OpenAI(
             base_url="https://openrouter.ai/api/v1",
