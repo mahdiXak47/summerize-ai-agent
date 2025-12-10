@@ -69,7 +69,8 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
 
         clean_body_text = remove_illegal_json_ctrl_str(body_text)
         _logger.info("CLEANED BODY TEXT repr: %r", clean_body_text)
-        incoming_ticket = IncomingTicket.model_validate_json(clean_body_text)
+        clean_body_text_no_newlines = clean_body_text.replace('\n', '')
+        incoming_ticket = IncomingTicket.model_validate_json(clean_body_text_no_newlines)
         # Map incoming fields to the summarizer ticket format
         mapped_ticket = {
             "ticket_title": incoming_ticket.summary,
