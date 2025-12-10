@@ -90,8 +90,6 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
     except Exception as exc:
         _logger.exception("Summarization failed: %s", exc)
         # Try manual json parsing to show line/col error diagnostics
-        import json
-        import sys
         try:
             json.loads(clean_body_text)
         except json.JSONDecodeError as json_exc:
