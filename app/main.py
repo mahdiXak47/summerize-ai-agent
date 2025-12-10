@@ -118,5 +118,5 @@ async def webhook_ticket(request: Request) -> MarkdownResponse:
         f"**فرایند رسیدگی:** {resolution_summary.strip()}\n\n"
         f"**نتیجه بررسی:** {result_and_key_points.strip()}"
     )
-
+    print(markdown_response)
     return {"content": markdown_response}
