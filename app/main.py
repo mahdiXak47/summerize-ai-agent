@@ -63,7 +63,12 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
         _logger.info("/webhook/ticket headers: %s", headers_dict)
         _logger.info("/webhook/ticket body: %s", body_text)
 
+        # Diagnostic logs
+        _logger.info("RAW BODY BYTES repr: %r", body_bytes)
+        _logger.info("DECODED BODY TEXT repr: %r", body_text)
+
         clean_body_text = remove_illegal_json_ctrl_str(body_text)
+        _logger.info("CLEANED BODY TEXT repr: %r", clean_body_text)
         incoming_ticket = IncomingTicket.model_validate_json(clean_body_text.encode('utf-8'))
         # Map incoming fields to the summarizer ticket format
         mapped_ticket = {
