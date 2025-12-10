@@ -1,6 +1,7 @@
 import json
 import logging
 from typing import Any, Dict
+import re
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -14,6 +15,11 @@ logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Ticket Summarizer Webhook")
+
+
+def remove_illegal_json_ctrl_str(s: str) -> str:
+    # Remove ASCII control characters except for whitespace (tab, newline, carriage return, and space)
+    return re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F]', '', s)
 
 
 @app.get("/healthz")
@@ -57,7 +63,8 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
         _logger.info("/webhook/ticket headers: %s", headers_dict)
         _logger.info("/webhook/ticket body: %s", body_text)
 
-        incoming_ticket = IncomingTicket.model_validate_json(body_bytes)
+        clean_body_text = remove_illegal_json_ctrl_str(body_text)
+        incoming_ticket = IncomingTicket.model_validate_json(clean_body_text.encode('utf-8'))
         # Map incoming fields to the summarizer ticket format
         mapped_ticket = {
             "ticket_title": incoming_ticket.summary,
