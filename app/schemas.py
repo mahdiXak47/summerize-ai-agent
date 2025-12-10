@@ -36,3 +36,7 @@ class IncomingTicket(BaseModel):
     summary: str
     description: str
     comments: List[IncomingComment] = Field(default_factory=list)
+
+
+class MarkdownResponse(BaseModel):
+    content: str

@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
-from app.schemas import SummaryResponse, IncomingTicket
+from app.schemas import IncomingTicket, MarkdownResponse
 from app.services.summarizer import summarize_ticket
 
 
@@ -53,8 +53,8 @@ def healthz(deep: int = Query(default=0)) -> JSONResponse:
     return JSONResponse(content=body, status_code=http_code)
 
 
-@app.post("/webhook/ticket", response_model=SummaryResponse)
-async def webhook_ticket(request: Request) -> SummaryResponse:
+@app.post("/webhook/ticket", response_model=MarkdownResponse)
+async def webhook_ticket(request: Request) -> MarkdownResponse:
     """Receive a ticket payload, log headers/body, summarize, and return JSON."""
     try:
         headers_dict = dict(request.headers)
@@ -64,8 +64,8 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
         _logger.info("/webhook/ticket body: %s", body_text)
 
         # Diagnostic logs
-        _logger.info("RAW BODY BYTES repr: %r", body_bytes)
-        _logger.info("DECODED BODY TEXT repr: %r", body_text)
+        # _logger.info("RAW BODY BYTES repr: %r", body_bytes)
+        # _logger.info("DECODED BODY TEXT repr: %r", body_text)
 
         clean_body_text = remove_illegal_json_ctrl_str(body_text)
         _logger.info("CLEANED BODY TEXT repr: %r", clean_body_text)
