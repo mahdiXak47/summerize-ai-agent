@@ -69,7 +69,6 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
 
         clean_body_text = remove_illegal_json_ctrl_str(body_text)
         _logger.info("CLEANED BODY TEXT repr: %r", clean_body_text)
-        # incoming_ticket = IncomingTicket.model_validate_json(clean_body_text.encode('utf-8'))
         incoming_ticket = IncomingTicket.model_validate_json(clean_body_text)
         # Map incoming fields to the summarizer ticket format
         mapped_ticket = {
@@ -88,9 +87,31 @@ async def webhook_ticket(request: Request) -> SummaryResponse:
         }
         ticket_json_str = json.dumps(mapped_ticket, ensure_ascii=False, indent=2)
         problem, resolution_summary, result_and_key_points = summarize_ticket(ticket_json_str)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:
         _logger.exception("Summarization failed: %s", exc)
-        raise HTTPException(status_code=503, detail="Summarization service unavailable.") from exc
+        # Try manual json parsing to show line/col error diagnostics
+        import json
+        import sys
+        try:
+            json.loads(clean_body_text)
+        except json.JSONDecodeError as json_exc:
+            line = json_exc.lineno
+            col = json_exc.colno
+            err_msg = json_exc.msg
+            lines = clean_body_text.splitlines()
+            bad_line = lines[line-1] if 0 < line <= len(lines) else ''
+            pointer = ' ' * (col-1) + '^'
+            char = ''
+            if 0 < col <= len(bad_line):
+                suspect = bad_line[col-1]
+                # if printable, show as is; else show unicode escape
+                char = f"Offending char: {repr(suspect)} / U+{ord(suspect):04X}"
+            else:
+                char = "Could not locate character."
+            _logger.error(f"Invalid JSON: {err_msg} at line {line}, column {col}\n>> {bad_line}\n   {pointer}\n   {char}")
+        except Exception as unknown_json:
+            _logger.error(f"Unknown error parsing JSON: {unknown_json}")
+        raise HTTPException(status_code=400, detail="Invalid JSON body (see server log for pinpointed error)") from exc
 
     combined_for_print = (
         "مسئله:\n" + problem.strip() + "\n\n"
